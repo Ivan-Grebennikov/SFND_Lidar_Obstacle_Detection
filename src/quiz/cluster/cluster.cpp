@@ -7,13 +7,16 @@
 #include <string>
 #include "kdtree.h"
 
+#include <unordered_set>
+#include <algorithm>
+
 // Arguments:
 // window is the region to draw box around
 // increase zoom to see more of the area
 pcl::visualization::PCLVisualizer::Ptr initScene(Box window, int zoom)
 {
 	pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer ("2D Viewer"));
-	viewer->setBackgroundColor (0, 0, 0);
+    viewer->setBackgroundColor (0, 0, 0);
   	viewer->initCameraParameters();
   	viewer->setCameraPosition(0, 0, zoom, 0, 1, 0);
   	viewer->addCoordinateSystem (1.0);
@@ -75,15 +78,43 @@ void render2DTree(Node* node, pcl::visualization::PCLVisualizer::Ptr& viewer, Bo
 
 }
 
+void proximity(const std::vector<std::vector<float>>& _points, int _current, std::vector<int>& _cluster,
+               std::unordered_set<int>& _processed, KdTree* _tree, float _distanceTol)
+{
+    _processed.insert(_current);
+    _cluster.push_back(_current);
+
+    const std::vector<int> neighbours = _tree->search(_points[_current], _distanceTol);
+
+    for (int neighbour : neighbours)
+    {
+        if (_processed.find(neighbour) == std::end(_processed)) {
+
+            proximity(_points, neighbour, _cluster, _processed, _tree, _distanceTol);
+        }
+    }
+}
+
 std::vector<std::vector<int>> euclideanCluster(const std::vector<std::vector<float>>& points, KdTree* tree, float distanceTol)
 {
 
-	// TODO: Fill out this function to return list of indices for each cluster
+    // TODO: Fill out this function to return list of indices for each cluster
 
-	std::vector<std::vector<int>> clusters;
- 
-	return clusters;
+    std::vector<std::vector<int>> clusters;
 
+    std::unordered_set<int> processed;
+
+    for (int point = 0; point < points.size(); ++point) {
+
+        if (processed.find(point) != std::end(processed))
+            continue;
+
+        clusters.emplace_back();
+
+        proximity(points, point, clusters.back(), processed, tree, distanceTol);
+    }
+
+    return clusters;
 }
 
 int main ()
@@ -112,8 +143,8 @@ int main ()
   	int it = 0;
   	render2DTree(tree->root,viewer,window, it);
   
-  	std::cout << "Test Search" << std::endl;
-  	std::vector<int> nearby = tree->search({-6,7},3.0);
+    std::cout << "Test Search" << std::endl;
+    std::vector<int> nearby = tree->search({-6,7},3.0);
   	for(int index : nearby)
       std::cout << index << ",";
   	std::cout << std::endl;
@@ -121,7 +152,7 @@ int main ()
   	// Time segmentation process
   	auto startTime = std::chrono::steady_clock::now();
   	//
-  	std::vector<std::vector<int>> clusters = euclideanCluster(points, tree, 3.0);
+    std::vector<std::vector<int>> clusters = euclideanCluster(points, tree, 3.0);
   	//
   	auto endTime = std::chrono::steady_clock::now();
   	auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
